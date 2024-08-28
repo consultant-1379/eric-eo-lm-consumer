@@ -1,0 +1,35 @@
+#
+# COPYRIGHT Ericsson 2024
+#
+#
+#
+# The copyright to the computer program(s) herein is the property of
+#
+# Ericsson Inc. The programs may be used and/or copied only with written
+#
+# permission from Ericsson Inc. or in accordance with the terms and
+#
+# conditions stipulated in the agreement/contract under which the
+#
+# program(s) have been supplied.
+#
+
+# Default values for eric-eo-lm-consumer-dependency.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+global:
+  security:
+    tls:
+      enabled: false
+
+eric-data-document-database-pg:
+  credentials:
+    kubernetesSecretName: eric-eo-database-pg-secret
+  db:
+    super-user: postgres
+    super-pwd: postgres
+    metrics-user: exporter
+    metrics-pwd: postgres
+    replica-user: replica
+    replica-pwd: postgres

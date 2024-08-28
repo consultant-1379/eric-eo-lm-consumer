@@ -1,0 +1,190 @@
+#
+# COPYRIGHT Ericsson 2024
+#
+#
+#
+# The copyright to the computer program(s) herein is the property of
+#
+# Ericsson Inc. The programs may be used and/or copied only with written
+#
+# permission from Ericsson Inc. or in accordance with the terms and
+#
+# conditions stipulated in the agreement/contract under which the
+#
+# program(s) have been supplied.
+#
+
+# Default values for eric-eo-lm-consumer.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+nameOverride: "eric-eo-lm-consumer"
+
+replicaCount: 2
+
+podDisruptionBudget:
+  minAvailable: 0
+
+updateStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 1
+    maxSurge: 0
+
+# DR-D1121-011 supported global parameters shall be left as comments (YAML comment) in the values.yaml
+#global:
+#  registry:
+#    url: armdocker.rnd.ericsson.se
+#    imagePullPolicy: IfNotPresent
+#  timezone: UTC
+#  nodeSelector: {}
+#  labels: {}
+#  annotations: {}
+#  security:
+#    tls:
+#      enabled: false
+#  geo-redundancy:
+#    enabled: false
+## DR-D1123-134
+#  securityPolicy:
+#    rolekind: ""
+
+imageCredentials:
+  licenseConsumer:
+    repoPath: # see default value in eric-product-info.yaml file
+  pgInitContainer:
+    repoPath: # see default value in eric-product-info.yaml file
+
+container:
+  registry:
+    enabled: true
+  ports:
+    http: 8080
+    https: 8443
+
+service:
+  type: ClusterIP
+  ports:
+    http: 80
+    https: 443
+
+resources:
+  licenseConsumer:
+    requests:
+      memory: "1024Mi"
+      cpu: "200m"
+      ephemeral-storage: "260Mi"
+    limits:
+      memory: "2048Mi"
+      cpu: "1000m"
+      ephemeral-storage: "400Mi"
+  licenseConsumerInit:
+    requests:
+      memory: "100Mi"
+      cpu: "300m"
+      ephemeral-storage: "260Mi"
+    limits:
+      memory: "256Mi"
+      cpu: "300m"
+      ephemeral-storage: "400Mi"
+
+database:
+  service: eric-oss-common-postgres
+  secret: eric-eo-database-pg-secret
+  schema: "lc_db"
+  port: "5432"
+  creationTime: "10"
+
+podPriority:
+  licenseConsumer:
+    priorityClassName: ""
+
+# DR1120-061 Tolerations to influence scheduling decisions made by Kubernetes scheduler
+tolerations:
+  licenseConsumer:
+    - key: node.kubernetes.io/not-ready
+      operator: Exists
+      effect: NoExecute
+      tolerationSeconds: 300
+    - key: node.kubernetes.io/unreachable
+      operator: Exists
+      effect: NoExecute
+      tolerationSeconds: 300
+
+terminationGracePeriodSeconds:
+  licenseConsumer: 30
+
+nodeSelector: {}
+labels: {}
+annotations: {}
+
+probes:
+  licenseConsumer:
+    livenessProbe:
+      initialDelaySeconds: 200
+      timeoutSeconds: 5
+      periodSeconds: 30
+      failureThreshold: 3
+    readinessProbe:
+      initialDelaySeconds: 20
+      timeoutSeconds: 5
+      periodSeconds: 10
+      failureThreshold: 3
+
+logging:
+  logstash:
+    host: eric-log-transformer
+    port: 5025
+
+security:
+  certificates:
+    secret: eric-eo-lm-consumer-keystore-creds
+
+affinity:
+  podAntiAffinity: "hard"
+  topologyKey: "kubernetes.io/hostname"
+
+highAvailability:
+  debug: false
+  serviceMesh:
+    routes:
+      get:
+        retries:
+          maxAttempts: 2
+          perTryTimeout: 5s
+        timeout: 8s
+    trafficPolicy:
+      outlierDetection:
+        splitExternalLocalOriginErrors: true
+        consecutiveLocalOriginFailures: 2
+        consecutive5xxErrors: 2
+        interval: 5s
+        baseEjectionTime: 1m
+
+prometheus:
+  path: "/actuator/prometheus"
+  scrape: "true"
+  scrape-role: "endpoints"
+  scrape-interval: "15s"
+
+# DR D1123-127
+appArmorProfile:
+  # The setting applies to all container when the container name is omitted.
+  # { choice='unconfined, runtime/default, localhost, "" ' } [ default="" ]
+  type: ""
+
+# DR D1123-128
+seccompProfile:
+  # The setting applies to all container when the container name is omitted.
+  # { choice='unconfined, runtime/default, localhost, "" ' } [ default="" ]
+  type: ""
+
+# DR-D1123-134 - Role name for security policy
+securityPolicy:
+  rolename: ""
+
+#DR-D1120-090
+topologySpreadConstraints: {}
+
+istio:
+  excludeOutboundPorts: "5432,5025,8080,8443"

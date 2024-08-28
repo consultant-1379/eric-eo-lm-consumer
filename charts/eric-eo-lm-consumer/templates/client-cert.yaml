@@ -1,0 +1,37 @@
+#
+# COPYRIGHT Ericsson 2024
+#
+#
+#
+# The copyright to the computer program(s) herein is the property of
+#
+# Ericsson Inc. The programs may be used and/or copied only with written
+#
+# permission from Ericsson Inc. or in accordance with the terms and
+#
+# conditions stipulated in the agreement/contract under which the
+#
+# program(s) have been supplied.
+#
+
+{{- if (eq (include "eric-eo-lm-consumer.global-security-tls-enabled" . ) "true") }}
+apiVersion: siptls.sec.ericsson.com/v1
+kind: InternalCertificate
+metadata:
+  name: {{ template "eric-eo-lm-consumer.name" . }}-client-cert
+  labels: {{- include "eric-eo-lm-consumer.labels.extended-defaults" . | nindent 4 }}
+  annotations: {{- include "eric-eo-lm-consumer.annotations" . | nindent 4 }}
+spec:
+  kubernetes:
+    generatedSecretName: {{ template "eric-eo-lm-consumer.name" . }}-client-cert
+    certificateName: clicert.pem
+    privateKeyName: cliprivkey.pem
+  certificate:
+    subject:
+      cn: {{ template "eric-eo-lm-consumer.name" . }}
+    subjectAlternativeName:
+      populateKubernetesDns: false
+    extendedKeyUsage:
+      tlsClientAuth: true
+      tlsServerAuth: false
+{{- end }}

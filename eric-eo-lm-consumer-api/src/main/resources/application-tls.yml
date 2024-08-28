@@ -1,0 +1,24 @@
+#
+# COPYRIGHT Ericsson 2024
+#
+#
+#
+# The copyright to the computer program(s) herein is the property of
+#
+# Ericsson Inc. The programs may be used and/or copied only with written
+#
+# permission from Ericsson Inc. or in accordance with the terms and
+#
+# conditions stipulated in the agreement/contract under which the
+#
+# program(s) have been supplied.
+#
+
+server:
+  port: 8443
+  ssl:
+    key-store: "file:/home/appuser/certs/consumer-keystore.p12"
+    key-store-password: ${KEYSTORE_PASSWORD:changeit}
+    key-store-type: pkcs12
+    key-alias: lm-consumer-servercert
+    key-password: ${KEYSTORE_PASSWORD:changeit}

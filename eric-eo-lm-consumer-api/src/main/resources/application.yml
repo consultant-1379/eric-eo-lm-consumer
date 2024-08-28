@@ -1,0 +1,135 @@
+#
+# COPYRIGHT Ericsson 2024
+#
+#
+#
+# The copyright to the computer program(s) herein is the property of
+#
+# Ericsson Inc. The programs may be used and/or copied only with written
+#
+# permission from Ericsson Inc. or in accordance with the terms and
+#
+# conditions stipulated in the agreement/contract under which the
+#
+# program(s) have been supplied.
+#
+
+server:
+  shutdown: graceful
+spring:
+  scheduled:
+    # The string has six single space-separated time and date fields:
+    #  ┌───────────── second (0-59)
+    #  │ ┌───────────── minute (0 - 59)
+    #  │ │ ┌───────────── hour (0 - 23)
+    #  │ │ │ ┌───────────── day of the month (1 - 31)
+    #  │ │ │ │ ┌───────────── month (1 - 12) (or JAN-DEC)
+    #  │ │ │ │ │ ┌───────────── day of the week (0 - 7)
+    #  │ │ │ │ │ │          (0 or 7 is Sunday, or MON-SUN)
+    #  │ │ │ │ │ │
+    #  * * * * * *
+
+    # *	All.
+    #   Represents that the schedule should run for every time unit.
+    #   A “*” in the minute field indicates that the schedule runs every minute
+
+    # ?	Any.
+    #   Represents any arbitrary value. This can be used only in day-of-month and day-of-week fields.
+    #   A “?” in day-of-month field will not use the day-of-month for deciding the schedule
+    #   as any value is acceptable here
+
+    # –	Range.
+    #   Represents a continuous range of values.
+    #   Using “5-8” in the <hour> field indicates the hours 5, 6, 7 and 8
+
+    # ,	Multiple Values.
+    #   Separates a list of different values.
+    #   Using “5, 6, 10” in the <hour> field indicates the hours 5, 6 and 10
+
+    # /	Increment.
+    #   Specifies the amount by which to increment the values of a field.
+    #   3/5 in the minute field indicates the minutes 3, 8, 13, …, 58 in an hour,
+    #   */10 in the minute field indicates the minutes 0, 10, 20…, 60
+
+    #Examples:
+    # 0 0 12 * * ?	      Fire at 12:00 PM (noon) every day
+    # 0 15 10 ? * *	      Fire at 10:15 AM every day
+    # 0 * 14 * * ?	      Fire every minute starting at 2:00 PM and ending at 2:59 PM, every day
+    # 0 0/5 14 * * ?	  Fire every 5 minutes starting at 2:00 PM and ending at 2:55 PM, every day
+    # 0 0/5 14,18 * * ?	  Fire every 5 minutes starting at 2:00 PM and ending at 2:55 PM,
+    #                     AND fire every 5 minutes starting at 6:00 PM and ending at 6:55 PM, every day
+    # 0 0 12 1/5 * ?	  Fire at 12 PM (noon) every 5 days every month, starting on the first day of the month
+    # 0 11 11 11 11 ?	  Fire every November 11 at 11:11 AM
+    cron: 0 */30 * ? * *
+    enabled: "true"
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      data-source-properties: stringtype=unspecified
+      minimum-idle: 1
+  jpa:
+    properties:
+      hibernate:
+        temp:
+          use_jdbc_metadata_defaults: false
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  lifecycle:
+    timeout-per-shutdown-phase: "10s"
+logging:
+  config: "classpath:logback/logback-${LOG_STREAMING_METHOD:indirect}.xml"
+  level:
+    root: INFO
+
+management:
+  health:
+    livenessState:
+      enabled: true
+    readinessState:
+      enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health:
+      show-details: "ALWAYS"
+      diskspace:
+        enabled: true
+        path: /tmp
+        threshold: 100MB
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: ping, diskSpace, pvcCheck
+        liveness:
+          include: ping, diskSpace
+    prometheus:
+      enabled: true
+    metrics:
+      enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+healthCheckEnv:
+  mountPaths:
+    readOnly:
+      tlsDependant: /opt/lm-consumer/certs/server, /opt/lm-consumer/certs/client, /opt/lm-consumer/certs/ca
+    readWrite: /tmp
+
+tls:
+  enabled: ${TLS_ENABLED:false}
+
+license-manager:
+  url: ${LM_API_URL}
+  isGeoRed: ${GEO_RED_ENABLED}
+  retry:
+    attempt: 5
+    delay: 5 # IN SECONDS
+
+nels:
+  productTypes: ${PRODUCT_TYPES:Ericsson_Orchestrator}

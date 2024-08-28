@@ -1,0 +1,296 @@
+#
+# COPYRIGHT Ericsson 2024
+#
+#
+#
+# The copyright to the computer program(s) herein is the property of
+#
+# Ericsson Inc. The programs may be used and/or copied only with written
+#
+# permission from Ericsson Inc. or in accordance with the terms and
+#
+# conditions stipulated in the agreement/contract under which the
+#
+# program(s) have been supplied.
+#
+
+{{/*
+Values for probes
+*/}}
+{{- $probesValue := fromJson (include "eric-eo-lm-consumer.probes" .) -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "eric-eo-lm-consumer.name" . }}
+  labels: {{- include "eric-eo-lm-consumer.labels.extended-defaults" . | nindent 4 }}
+  annotations: {{- include "eric-eo-lm-consumer.annotations" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: {{ .Values.updateStrategy.type | quote }}
+  {{- if and (eq .Values.updateStrategy.type "RollingUpdate") .Values.updateStrategy.rollingUpdate }}
+    rollingUpdate:
+      maxUnavailable: {{ .Values.updateStrategy.rollingUpdate.maxUnavailable }}
+      maxSurge: {{ .Values.updateStrategy.rollingUpdate.maxSurge }}
+  {{- end }}
+  selector:
+    matchLabels:
+      app: {{ template "eric-eo-lm-consumer.name" . }}
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        {{- $commonLabels := include "eric-eo-lm-consumer.labels.extended-defaults" . | fromYaml }}
+        {{- include "eric-eo-evnfm-library-chart.mergeLabels" (dict "location" .Template.Name "sources" (list
+            $commonLabels)) | trim | nindent 8 }}
+      annotations:
+        {{- $commonAnnotations := include "eric-eo-lm-consumer.annotations" . | fromYaml }}
+        {{- $serviceMesh := include "eric-eo-lm-consumer.service-mesh-inject" . | fromYaml }}
+        {{- $serviceMeshVersion := include "eric-eo-lm-consumer.service-mesh-version" . | fromYaml }}
+        {{- $serviceMeshLogs := include "eric-eo-lm-consumer.service-mesh-logs" . | fromYaml }}
+        {{- $serviceMeshExcludeOutboundPort := include "eric-eo-lm-consumer.excludeOutboundPorts" . | fromYaml }}
+        {{- include "eric-eo-evnfm-library-chart.mergeAnnotations" (dict "location" .Template.Name "sources" (list $commonAnnotations
+            $serviceMesh $serviceMeshVersion $serviceMeshLogs $serviceMeshExcludeOutboundPort)) | trim | nindent 8 }}
+    spec:
+      securityContext:
+        fsGroup: {{ include "eric-eo-lm-consumer.fsGroup" . }}
+      affinity:
+        podAntiAffinity:
+      {{- if eq .Values.affinity.podAntiAffinity "hard" }}
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+      {{- else if eq .Values.affinity.podAntiAffinity "soft" }}
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+      {{- end }}
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - {{ template "eric-eo-lm-consumer.name" . }}
+              topologyKey: {{ .Values.affinity.topologyKey }}
+      {{- if include "eric-eo-lm-consumer.pullSecrets" . }}
+      imagePullSecrets:
+        - name: {{ template "eric-eo-lm-consumer.pullSecrets" . }}
+      {{- end }}
+      volumes:
+        - name: tmp-data
+          emptyDir: {}
+      {{- if .Values.global.security.tls.enabled }}
+        - name: eric-eo-lm-consumer-server-cert-volume
+          secret:
+            optional: true
+            secretName: {{ template "eric-eo-lm-consumer.name" . }}-server-cert
+        - name: eric-eo-lm-consumer-client-cert-volume
+          secret:
+            optional: true
+            secretName: {{ template "eric-eo-lm-consumer.name" . }}-client-cert
+        - name: eric-eo-lm-consumer-root-ca-cert-volume
+          secret:
+            optional: true
+            secretName: eric-sec-sip-tls-trusted-root-cert
+      {{- end }}
+      serviceAccountName: {{ template "eric-eo-lm-consumer.serviceAccount.name" . }}
+      {{- if include "eric-eo-lm-consumer.podPriority" . }}
+      priorityClassName: {{- include "eric-eo-lm-consumer.podPriority" . | indent 2 }}
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: {{ template "eric-eo-lm-consumer.mainImagePath" . }}
+          imagePullPolicy: {{ template "eric-eo-lm-consumer.imagePullPolicy" . }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.container.ports.http }}
+              protocol: TCP
+            - name: https
+              containerPort: {{ .Values.container.ports.https }}
+              protocol: TCP
+          env:
+            - name: "LM_API_URL"
+        {{- if .Values.global.security.tls.enabled }}
+              value: "https://eric-lm-combined-server:18326"
+        {{- else }}
+              value: "http://eric-lm-combined-server:8080"
+        {{- end }}
+            - name: "TLS_ENABLED"
+              value: {{ .Values.global.security.tls.enabled | quote }}
+            - name: "GEO_RED_ENABLED"
+              value: {{ index .Values "global" "geo-redundancy" "enabled" | quote }}
+            - name: "PRODUCT_TYPES"
+              value: {{ include "eric-eo-lm-consumer.nels.productTypes" . | trimSuffix ";" | quote }}
+            - name: SERVICE_ID
+              value: {{ include "eric-eo-lm-consumer.name" . | quote }}
+        {{- if .Values.global.logging }}
+          {{- if .Values.global.logging.enabled }}
+            - name: LOG_STREAMING_METHOD
+              value: {{ include "eric-eo-lm-consumer.log.streamingMethod" . }}
+            {{- if or (eq (include "eric-eo-lm-consumer.log.streamingMethod" .) "dual") (eq (include "eric-eo-lm-consumer.log.streamingMethod" .) "direct") }}
+            - name: LOGSTASH_HOST
+              value: "{{ .Values.logging.logstash.host }}"
+            - name: LOGSTASH_PORT
+              value: "{{ .Values.logging.logstash.port }}"
+            {{- end }}
+          {{- end }}
+        {{- end }}
+            - name: "SPRING_DATASOURCE_URL"
+              value: "jdbc:postgresql://{{ .Values.database.service }}:{{ index .Values "database" "port" }}/{{ index .Values "database" "schema" }}"
+            - name: "SPRING_DATASOURCE_USERNAME"
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.secret }}
+                  key: custom-user
+            - name: "SPRING_DATASOURCE_PASSWORD"
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.secret }}
+                  key: custom-pwd
+            - name: "SPRING_CRONJOB_CRON_VALUE"
+              value: "-"
+          {{- if .Values.global.security.tls.enabled }}
+            - name: "TRUSTSTORE_PASSWORD"
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.security.certificates.secret }}
+                  key: truststore-pwd
+            - name: "KEYSTORE_PASSWORD"
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.security.certificates.secret }}
+                  key: keystore-pwd
+          {{- end }}
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            privileged: false
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - all
+          volumeMounts:
+            - name: tmp-data
+              mountPath: /tmp
+              readOnly: false
+          {{- if .Values.global.security.tls.enabled }}
+            - name: eric-eo-lm-consumer-server-cert-volume
+              mountPath: "/opt/lm-consumer/certs/server"
+              readOnly: true
+            - name: eric-eo-lm-consumer-client-cert-volume
+              mountPath: "/opt/lm-consumer/certs/client"
+              readOnly: true
+            - name: eric-eo-lm-consumer-root-ca-cert-volume
+              mountPath: "/opt/lm-consumer/certs/ca"
+              readOnly: true
+          {{- end }}
+          resources:
+            requests:
+            {{- if .Values.resources.licenseConsumer.requests.cpu }}
+              cpu: {{ .Values.resources.licenseConsumer.requests.cpu | quote }}
+            {{- end }}
+            {{- if .Values.resources.licenseConsumer.requests.memory }}
+              memory: {{ .Values.resources.licenseConsumer.requests.memory | quote }}
+            {{- end }}
+            {{- if index .Values.resources.licenseConsumer.requests "ephemeral-storage" }}
+              ephemeral-storage: {{ index .Values.resources.licenseConsumer.requests "ephemeral-storage" | quote }}
+            {{- end }}
+            limits:
+            {{- if .Values.resources.licenseConsumer.limits.cpu }}
+              cpu: {{ .Values.resources.licenseConsumer.limits.cpu | quote }}
+            {{- end }}
+            {{- if .Values.resources.licenseConsumer.limits.memory }}
+              memory: {{ .Values.resources.licenseConsumer.limits.memory | quote }}
+            {{- end }}
+            {{- if index .Values.resources.licenseConsumer.limits "ephemeral-storage" }}
+              ephemeral-storage: {{ index .Values.resources.licenseConsumer.limits "ephemeral-storage" | quote }}
+            {{- end }}
+          livenessProbe:
+            initialDelaySeconds: {{ $probesValue.licenseConsumer.livenessProbe.initialDelaySeconds }}
+            timeoutSeconds: {{ $probesValue.licenseConsumer.livenessProbe.timeoutSeconds }}
+            periodSeconds: {{ $probesValue.licenseConsumer.livenessProbe.periodSeconds }}
+            failureThreshold: {{ $probesValue.licenseConsumer.livenessProbe.failureThreshold }}
+            httpGet:
+              path: /actuator/health/liveness
+              port: {{ .Values.container.ports.http }}
+          readinessProbe:
+            initialDelaySeconds: {{ $probesValue.licenseConsumer.readinessProbe.initialDelaySeconds }}
+            timeoutSeconds: {{ $probesValue.licenseConsumer.readinessProbe.timeoutSeconds }}
+            periodSeconds: {{ $probesValue.licenseConsumer.readinessProbe.periodSeconds }}
+            failureThreshold: {{ $probesValue.licenseConsumer.readinessProbe.failureThreshold }}
+            httpGet:
+              path: /actuator/health/readiness
+              port: {{ .Values.container.ports.http }}
+      initContainers:
+        - name: create-db-schema
+          image: {{ template "eric-eo-lm-consumer.pgInitContainerPath" . }}
+          imagePullPolicy: {{ template "eric-eo-lm-consumer.pgInitContainer.imagePullPolicy" . }}
+          env:
+            - name: "POSTGRES_HOST"
+              value: "{{ .Values.database.service }}"
+            - name: "POSTGRES_USER"
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.secret }}
+                  key: super-user
+            - name: "PGPASSWORD"
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.secret }}
+                  key: super-pwd
+            - name: "POSTGRES_DB"
+              value: {{ .Values.database.schema | quote }}
+            - name: "POSTGRES_PORT"
+              value: {{ .Values.database.port | quote }}
+            - name: "STARTUP_WAIT"
+              value: {{ .Values.database.creationTime | quote }}
+            - name: TZ
+              value: {{ .Values.global.timezone }}
+          resources:
+            requests:
+            {{- if .Values.resources.licenseConsumerInit.requests.cpu }}
+              cpu: {{ .Values.resources.licenseConsumerInit.requests.cpu | quote }}
+            {{- end }}
+            {{- if .Values.resources.licenseConsumerInit.requests.memory }}
+              memory: {{ .Values.resources.licenseConsumerInit.requests.memory | quote }}
+            {{- end }}
+            {{- if index .Values.resources.licenseConsumerInit.requests "ephemeral-storage" }}
+              ephemeral-storage: {{ index .Values.resources.licenseConsumerInit.requests "ephemeral-storage" | quote }}
+            {{- end }}
+            limits:
+            {{- if .Values.resources.licenseConsumerInit.limits.cpu }}
+              cpu: {{ .Values.resources.licenseConsumerInit.limits.cpu | quote }}
+            {{- end }}
+            {{- if .Values.resources.licenseConsumerInit.limits.memory }}
+              memory: {{ .Values.resources.licenseConsumerInit.limits.memory | quote }}
+            {{- end }}
+            {{- if index .Values.resources.licenseConsumerInit.limits "ephemeral-storage" }}
+              ephemeral-storage: {{ index .Values.resources.licenseConsumerInit.limits "ephemeral-storage" | quote }}
+            {{- end }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            privileged: false
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - all
+      {{- if or .Values.nodeSelector (and .Values.global .Values.global.nodeSelector) }}
+      nodeSelector: {{- include "eric-eo-lm-consumer.nodeSelector" . | nindent 8 }}
+      {{- end }}
+      {{- if or .Values.tolerations (and .Values.global .Values.global.tolerations) }}
+      tolerations: {{ include "eric-eo-lm-consumer.tolerations.licenseConsumer" . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.terminationGracePeriodSeconds }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds.licenseConsumer | int }}
+      {{- end }}
+      {{- if .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+      {{- range $constraints := .Values.topologySpreadConstraints }}
+        - maxSkew: {{ $constraints.maxSkew }}
+          topologyKey: {{ $constraints.topologyKey }}
+          whenUnsatisfiable: {{ $constraints.whenUnsatisfiable }}
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ template "eric-eo-lm-consumer.name" . }}
+              app.kubernetes.io/instance: {{ .Release.Name | quote }}
+      {{- end }}
+      {{- end }}

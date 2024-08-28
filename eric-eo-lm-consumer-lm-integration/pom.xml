@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ ~ COPYRIGHT Ericsson 2024
+ ~
+ ~
+ ~
+ ~ The copyright to the computer program(s) herein is the property of
+ ~
+ ~ Ericsson Inc. The programs may be used and/or copied only with written
+ ~
+ ~ permission from Ericsson Inc. or in accordance with the terms and
+ ~
+ ~ conditions stipulated in the agreement/contract under which the
+ ~
+ ~ program(s) have been supplied.
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <parent>
+    <artifactId>eric-eo-lm-consumer</artifactId>
+    <groupId>com.ericsson.orchestration.mgmt</groupId>
+    <version>0.172.0-2-SNAPSHOT</version>
+  </parent>
+  <modelVersion>4.0.0</modelVersion>
+
+  <artifactId>eric-eo-lm-consumer-lm-integration</artifactId>
+
+  <properties>
+    <maven.compiler.source>17</maven.compiler.source>
+    <maven.compiler.target>17</maven.compiler.target>
+    <testcontainers-jupiter.version>1.19.3</testcontainers-jupiter.version>
+    <okhttp3-mockwebserver.version>4.11.0</okhttp3-mockwebserver.version>
+  </properties>
+
+  <dependencies>
+    <!-- TEST SCOPE START -->
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>${testcontainers-jupiter.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.squareup.okhttp3</groupId>
+      <artifactId>mockwebserver</artifactId>
+      <version>${okhttp3-mockwebserver.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <!-- TEST SCOPE END -->
+  </dependencies>
+
+</project>
